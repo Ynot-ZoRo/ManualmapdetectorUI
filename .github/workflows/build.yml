@@ -32,14 +32,15 @@ jobs:
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o publish
 
     # --------------------------
-    # Auto-generate tag
+    # Auto-generate tag (PowerShell)
     # --------------------------
     - name: Generate Auto Tag
       id: autotag
+      shell: pwsh
       run: |
-        echo "Current date tag: v$(date +'%Y.%m.%d.%H%M')" > tag.txt
-        TAG=$(cat tag.txt | tr -d '\n')
-        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        $tag = "v" + (Get-Date -Format "yyyy.MM.dd.HHmm")
+        echo "Generated tag: $tag"
+        echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
     # --------------------------
     # Create Release automatically
