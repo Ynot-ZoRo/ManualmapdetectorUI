@@ -1,9 +1,12 @@
-name: Build & Auto-Release WPF App
+name: Build, Sign, and Release WPF App
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+
+permissions:
+  contents: write   # REQUIRED for release creation
 
 jobs:
   build:
@@ -18,40 +21,60 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    # ---------------------------------------
+    #  Restore packages
+    # ---------------------------------------
     - name: Restore Dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
 
+    # ---------------------------------------
+    #  Build
+    # ---------------------------------------
     - name: Build Project
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
-    - name: Publish Project
+    # ---------------------------------------
+    #  Publish self-contained EXE
+    # ---------------------------------------
+    - name: Publish EXE
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
-    - name: Zip Published Build
-      run: Compress-Archive -Path ./publish/* -DestinationPath ./ManualMapDetectorWPF.zip
+    # ---------------------------------------
+    #  Create a temporary self-signed certificate
+    # ---------------------------------------
+    - name: Create Self-Signed Certificate
+      run: |
+        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=ManualMapDetectorWPF" -CertStoreLocation "Cert:\CurrentUser\My"
+        Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password (ConvertTo-SecureString -String "password123" -Force -AsPlainText)
 
+    # ---------------------------------------
+    #  Sign the EXE using signtool
+    # ---------------------------------------
+    - name: Sign Published EXE
+      run: |
+        $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+        $files = Get-ChildItem -Path ./publish -Filter *.exe
+        foreach ($f in $files) {
+          & $signtool sign /fd SHA256 /a /f cert.pfx /p password123 "$($f.FullName)"
+        }
+
+    # ---------------------------------------
+    #  Upload artifact for Actions
+    # ---------------------------------------
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ManualMapDetectorWPF-EXE
+        path: ./publish/**
+
+    # ---------------------------------------
+    #  Create GitHub Release + Attach EXE
+    # ---------------------------------------
     - name: Create GitHub Release
-      id: create_release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ github.run_number }}
-        name: "Auto Release Build #${{ github.run_number }}"
-        body: |
-          🚀 Automated Release Build  
-          Build Number: ${{ github.run_number }}  
-          Commit: ${{ github.sha }}
-
-        draft: false
-        prerelease: false
+        name: "ManualMapDetectorWPF Build ${{ github.run_number }}"
+        files: publish/**
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ManualMapDetectorWPF.zip
-        asset_name: ManualMapDetectorWPF.zip
-        asset_content_type: application/zip
