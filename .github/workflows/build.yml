@@ -1,10 +1,13 @@
-name: Build & Release WPF App (EXE Only)
+name: Auto Build & Release WPF EXE
 
 on:
   push:
-    tags:
-      - "v*"     # Runs when you push a tag like v1.0.0
+    branches:
+      - main
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -17,7 +20,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: "8.0.x"
+        dotnet-version: '8.0.x'
 
     - name: Restore Dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
@@ -26,20 +29,27 @@ jobs:
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
     - name: Publish EXE
-      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
+      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o publish
 
-    # -------- Copy ONLY the EXE --------
-    - name: Extract only EXE
+    # --------------------------
+    # Auto-generate tag
+    # --------------------------
+    - name: Generate Auto Tag
+      id: autotag
       run: |
-        mkdir output
-        copy ".\publish\*.exe" ".\output\"
+        echo "Current date tag: v$(date +'%Y.%m.%d.%H%M')" > tag.txt
+        TAG=$(cat tag.txt | tr -d '\n')
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-    # -------- Upload EXE directly to release --------
-    - name: Create GitHub Release
-      id: create_release
+    # --------------------------
+    # Create Release automatically
+    # --------------------------
+    - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        files: output/*.exe
-        generate_release_notes: true
+        tag_name: ${{ steps.autotag.outputs.tag }}
+        name: "Auto Release ${{ steps.autotag.outputs.tag }}"
+        files: |
+          publish/*.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
