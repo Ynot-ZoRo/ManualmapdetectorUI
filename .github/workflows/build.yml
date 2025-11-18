@@ -1,4 +1,4 @@
-name: Build, Sign, and Release WPF App
+name: Build and Release WPF App
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # REQUIRED for release creation
+  contents: write   # Needed for release creation
 
 jobs:
   build:
@@ -21,55 +21,36 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    # ---------------------------------------
-    #  Restore packages
-    # ---------------------------------------
+    # ------------------------------
+    # Restore packages
+    # ------------------------------
     - name: Restore Dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
 
-    # ---------------------------------------
-    #  Build
-    # ---------------------------------------
+    # ------------------------------
+    # Build
+    # ------------------------------
     - name: Build Project
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
-    # ---------------------------------------
-    #  Publish self-contained EXE
-    # ---------------------------------------
-    - name: Publish EXE
+    # ------------------------------
+    # Publish self-contained EXE
+    # ------------------------------
+    - name: Publish App
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
-    # ---------------------------------------
-    #  Create a temporary self-signed certificate
-    # ---------------------------------------
-    - name: Create Self-Signed Certificate
-      run: |
-        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=ManualMapDetectorWPF" -CertStoreLocation "Cert:\CurrentUser\My"
-        Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password (ConvertTo-SecureString -String "password123" -Force -AsPlainText)
-
-    # ---------------------------------------
-    #  Sign the EXE using signtool
-    # ---------------------------------------
-    - name: Sign Published EXE
-      run: |
-        $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
-        $files = Get-ChildItem -Path ./publish -Filter *.exe
-        foreach ($f in $files) {
-          & $signtool sign /fd SHA256 /a /f cert.pfx /p password123 "$($f.FullName)"
-        }
-
-    # ---------------------------------------
-    #  Upload artifact for Actions
-    # ---------------------------------------
+    # ------------------------------
+    # Upload EXE as GitHub artifact
+    # ------------------------------
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ManualMapDetectorWPF-EXE
         path: ./publish/**
 
-    # ---------------------------------------
-    #  Create GitHub Release + Attach EXE
-    # ---------------------------------------
+    # ------------------------------
+    # Create GitHub Release + Attach EXE
+    # ------------------------------
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
