@@ -1,4 +1,4 @@
-name: Build WPF App
+name: Build & Auto-Release WPF App
 
 on:
   push:
@@ -24,11 +24,34 @@ jobs:
     - name: Build Project
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
-    - name: Publish EXE
+    - name: Publish Project
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
-    - name: Upload Build Artifact
-      uses: actions/upload-artifact@v4
+    - name: Zip Published Build
+      run: Compress-Archive -Path ./publish/* -DestinationPath ./ManualMapDetectorWPF.zip
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
       with:
-        name: ManualMapDetectorWPF-EXE
-        path: ./publish/**
+        tag_name: v${{ github.run_number }}
+        name: "Auto Release Build #${{ github.run_number }}"
+        body: |
+          🚀 Automated Release Build  
+          Build Number: ${{ github.run_number }}  
+          Commit: ${{ github.sha }}
+
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./ManualMapDetectorWPF.zip
+        asset_name: ManualMapDetectorWPF.zip
+        asset_content_type: application/zip
