@@ -6,23 +6,29 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # Needed for release creation
+  contents: write   # Needed to create releases
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
+    # ------------------------------
+    # Checkout repo
+    # ------------------------------
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    # ------------------------------
+    # Setup .NET
+    # ------------------------------
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
     # ------------------------------
-    # Restore packages
+    # Restore Packages
     # ------------------------------
     - name: Restore Dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
@@ -34,13 +40,13 @@ jobs:
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
     # ------------------------------
-    # Publish self-contained EXE
+    # Publish EXE
     # ------------------------------
     - name: Publish App
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
     # ------------------------------
-    # Upload EXE as GitHub artifact
+    # Upload Build Artifact
     # ------------------------------
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
@@ -49,7 +55,14 @@ jobs:
         path: ./publish/**
 
     # ------------------------------
-    # Create GitHub Release + Attach EXE
+    # Rate Limit Protection
+    # (prevents “secondary rate limit” errors)
+    # ------------------------------
+    - name: Delay to avoid GitHub API rate limit
+      run: timeout /t 15
+
+    # ------------------------------
+    # Create GitHub Release
     # ------------------------------
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
