@@ -1,12 +1,10 @@
-name: Build and Release WPF App
+name: Build & Release WPF App (EXE Only)
 
 on:
   push:
-    branches: [ "main" ]
+    tags:
+      - "v*"     # Runs when you push a tag like v1.0.0
   workflow_dispatch:
-
-permissions:
-  contents: write   # needed for creating releases
 
 jobs:
   build:
@@ -19,7 +17,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: "8.0.x"
 
     - name: Restore Dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
@@ -27,24 +25,21 @@ jobs:
     - name: Build Project
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
-    - name: Publish App
+    - name: Publish EXE
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
-    - name: Upload Build Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ManualMapDetectorWPF-EXE
-        path: ./publish/**
+    # -------- Copy ONLY the EXE --------
+    - name: Extract only EXE
+      run: |
+        mkdir output
+        copy ".\publish\*.exe" ".\output\"
 
-    # FIXED RATE-LIMIT DELAY
-    - name: Delay to avoid GitHub API rate limit
-      run: Start-Sleep -Seconds 15
-
+    # -------- Upload EXE directly to release --------
     - name: Create GitHub Release
+      id: create_release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.run_number }}
-        name: "ManualMapDetectorWPF Build ${{ github.run_number }}"
-        files: publish/**
+        files: output/*.exe
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
