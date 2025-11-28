@@ -1,4 +1,4 @@
-name: Auto Build & Release WPF EXE
+name: Build & Release Self-Contained WPF EXE
 
 on:
   push:
@@ -14,22 +14,25 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup .NET
+    - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
-    - name: Restore Dependencies
+    # Restore dependencies
+    - name: Restore dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
 
-    - name: Build Project
+    # Build project
+    - name: Build project
       run: dotnet build ManualMapDetectorWPF.csproj -c Release
 
-    - name: Publish EXE
-      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o publish
+    # Publish self-contained EXE
+    - name: Publish self-contained EXE
+      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
 
     # --------------------------
     # Auto-generate tag (PowerShell)
@@ -43,13 +46,13 @@ jobs:
         echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
     # --------------------------
-    # Create Release automatically
+    # Create GitHub Release
     # --------------------------
-    - name: Create Release
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.autotag.outputs.tag }}
-        name: "Auto Release ${{ steps.autotag.outputs.tag }}"
+        name: "Release ${{ steps.autotag.outputs.tag }}"
         files: |
           publish/*.exe
       env:
