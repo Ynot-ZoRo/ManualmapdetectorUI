@@ -1,7 +1,9 @@
-name: Build WPF EXE (VMProtected)
+name: Build WPF EXE
 
 on:
   push:
+    branches: [ "main", "master" ]
+  pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
@@ -16,9 +18,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'   # change if needed
+        dotnet-version: '8.0.x'   # change if your project uses another version
 
-    - name: Restore
+    - name: Restore dependencies
       run: dotnet restore ManualMapDetectorWPF.csproj
 
     - name: Build Release
@@ -27,27 +29,9 @@ jobs:
     - name: Publish EXE
       run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 
-    # ---------------- VMProtect ----------------
-    - name: Download VMProtect
-      run: |
-        mkdir tools
-        curl -L "${{ secrets.VMP_URL }}" -o vmprotect.zip
-        tar -xf vmprotect.zip -C tools
-
-    - name: Apply VMProtect
-      env:
-        VMP_LICENSE: ${{ secrets.VMP_LICENSE }}
-      run: |
-        $exe = Get-ChildItem bin\Release\net*\win-x64\publish\*.exe | Select-Object -First 1
-        tools\vmprotect\VMProtect_Con.exe `
-          "$exe" `
-          "$($exe.FullName.Replace('.exe','_protected.exe'))" `
-          -pf vmprotect.vmp `
-          -lf "$env:VMP_LICENSE"
-
-    - name: Upload Protected EXE
+    - name: Upload EXE artifact
       uses: actions/upload-artifact@v4
       with:
-        name: VMProtected-EXE
+        name: ManualMapDetectorWPF-EXE
         path: |
-          bin/Release/**/_protected.exe
+          bin/Release/net*/win-x64/publish/*.exe
