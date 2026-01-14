@@ -1,13 +1,9 @@
-name: Build & Release Self-Contained WPF EXE
+name: Build WPF EXE (VMProtected)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main", "master" ]
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -17,43 +13,41 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup .NET SDK
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '8.0.x'   # change if needed
 
-    # Restore dependencies
-    - name: Restore dependencies
+    - name: Restore
       run: dotnet restore ManualMapDetectorWPF.csproj
 
-    # Build project
-    - name: Build project
-      run: dotnet build ManualMapDetectorWPF.csproj -c Release
+    - name: Build Release
+      run: dotnet build ManualMapDetectorWPF.csproj -c Release --no-restore
 
-    # Publish self-contained EXE
-    - name: Publish self-contained EXE
-      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained true -o ./publish
+    - name: Publish EXE
+      run: dotnet publish ManualMapDetectorWPF.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 
-    # --------------------------
-    # Auto-generate tag (PowerShell)
-    # --------------------------
-    - name: Generate Auto Tag
-      id: autotag
-      shell: pwsh
+    # ---------------- VMProtect ----------------
+    - name: Download VMProtect
       run: |
-        $tag = "v" + (Get-Date -Format "yyyy.MM.dd.HHmm")
-        echo "Generated tag: $tag"
-        echo "tag=$tag" >> $env:GITHUB_OUTPUT
+        mkdir tools
+        curl -L "${{ secrets.VMP_URL }}" -o vmprotect.zip
+        tar -xf vmprotect.zip -C tools
 
-    # --------------------------
-    # Create GitHub Release
-    # --------------------------
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.autotag.outputs.tag }}
-        name: "Release ${{ steps.autotag.outputs.tag }}"
-        files: |
-          publish/*.exe
+    - name: Apply VMProtect
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VMP_LICENSE: ${{ secrets.VMP_LICENSE }}
+      run: |
+        $exe = Get-ChildItem bin\Release\net*\win-x64\publish\*.exe | Select-Object -First 1
+        tools\vmprotect\VMProtect_Con.exe `
+          "$exe" `
+          "$($exe.FullName.Replace('.exe','_protected.exe'))" `
+          -pf vmprotect.vmp `
+          -lf "$env:VMP_LICENSE"
+
+    - name: Upload Protected EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: VMProtected-EXE
+        path: |
+          bin/Release/**/_protected.exe
